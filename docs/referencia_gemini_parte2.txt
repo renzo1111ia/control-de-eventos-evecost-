@@ -1,0 +1,786 @@
+Para avanzar ordenado y que te quede listo para levantar en tu servidor (Docker / Coolify / VPS), aquí tienes la estructura base del proyecto y el código principal funcional tanto del  Backend (Node.js + Express + PostgreSQL)  como del  Frontend (React + Vite + Tailwind CSS)  con el  Popup bloqueante inicial  (nombre de productora + switch de barra), validación de RUT, envío de QR por correo y escáner.
+Estructura de Carpetas del Proyecto
+Plaintext
+event-control-saas/
+├── backend/
+│   ├── package.json
+│   ├── .env
+│   └── src/
+│       ├── db.js
+│       ├── utils.js
+│       └── server.js
+└── frontend/
+├── package.json
+└── src/
+├── App.jsx
+└── components/
+├── SetupModal.jsx
+├── AttendeesModule.jsx
+├── ScannerModule.jsx
+├── BarStockModule.jsx
+└── FinanceModule.jsx
+PARTE 1: BACKEND (Node.js + Express + PostgreSQL)
+1. Instalación ( backend/package.json )
+Ejecuta en la carpeta  backend :
+Bash
+npm init -y
+npm install express pg cors dotenv qrcode nodemailer
+(Asegúrate de agregar  "type": "module"  en tu  package.json ).
+2. Variables de Entorno ( backend/.env )
+Fragmento de código
+PORT=4000
+DATABASE_URL=postgresql://usuario:password@localhost:5432/eventos_db
+QR_SECRET_KEY=clave_secreta_super_segura_2026
+SMTP_HOST=smtp.tudominio.cl
+SMTP_PORT=587
+SMTP_USER=tickets@tudominio.cl
+SMTP_PASS=tu_password_smtp
+SMTP_FROM_EMAIL=tickets@tudominio.cl
+3. Conexión Base de Datos ( backend/src/db.js )
+JavaScript
+import  pg  from   'pg' ;
+import  dotenv  from   'dotenv' ;
+dotenv.config();
+const  { Pool } = pg;
+export   const  pool =  new  Pool({
+connectionString : process.env.DATABASE_URL,
+});
+4. Utilidades: Validador RUT y Envío de QR ( backend/src/utils.js )
+JavaScript
+import  crypto  from   'crypto' ;
+import  QRCode  from   'qrcode' ;
+import  nodemailer  from   'nodemailer' ;
+// Validación Módulo 11 RUT Chileno
+export    function   validarRUT ( rut )  {
+const  clean = rut.replace( /[^0-9kK]/g ,  '' ).toUpperCase();
+if  (clean.length <  8 )  return   false ;
+const  body = clean.slice( 0 , - 1 );
+const  dv = clean.slice(- 1 );
+let  sum =  0 ;
+let  mul =  2 ;
+for  ( let  i = body.length -  1 ; i >=  0 ; i--) {
+sum +=  parseInt (body[i],  10 ) * mul;
+mul = mul ===  7  ?  2  : mul +  1 ;
+}
+const  res =  11  - (sum %  11 );
+const  expected = res ===  11  ?  '0'  : res ===  10  ?  'K'  : res.toString();
+return  dv === expected;
+}
+// Formatear RUT limpio (ej: 12.345.678-9)
+export    function   formatearRUT ( rut )  {
+const  clean = rut.replace( /[^0-9kK]/g ,  '' ).toUpperCase();
+const  body = clean.slice( 0 , - 1 );
+const  dv = clean.slice(- 1 );
+return   ` ${body.replace( /\B(?=(\d{3})+(?!\d))/g ,  '.' )} - ${dv} ` ;
+}
+// Generar firma segura para QR
+export    function   generarFirmaQR ( eventId, attendeeId, rut )  {
+return  crypto
+.createHmac( 'sha256' , process.env.QR_SECRET_KEY)
+.update( ` ${eventId} : ${attendeeId} : ${rut} ` )
+.digest( 'hex' )
+.slice( 0 ,  16 );
+}
+// Enviar correo con el nombre de la productora como remitente
+export   async    function   enviarCorreoTicket ( { attendee, event, producer } )  {
+const  signature = generarFirmaQR(event.id, attendee.id, attendee.rut);
+const  qrPayload =  JSON .stringify({
+tid : attendee.id,
+eid : event.id,
+sig : signature,
+});
+const  qrBase64 =  await  QRCode.toDataURL(qrPayload, {  width :  320 ,  margin :  2  });
+const  transporter = nodemailer.createTransport({
+host : process.env.SMTP_HOST,
+port :  Number (process.env.SMTP_PORT),
+secure :  false ,
+auth : {
+user : process.env.SMTP_USER,
+pass : process.env.SMTP_PASS,
+},
+});
+await  transporter.sendMail({
+from :  `" ${producer.name} " < ${process.env.SMTP_FROM_EMAIL} >` ,
+replyTo : producer.contact_email,
+to : attendee.email,
+subject :  `Tu Entrada QR -  ${event.name}  ( ${producer.name} )` ,
+html :  `
+<div style="font-family: sans-serif; max-width: 480px; margin: auto; background: #0f172a; color: #f8fafc; padding: 24px; border-radius: 12px;">
+<h2 style="color: #22c55e; margin: 0;"> ${producer.name} </h2>
+<p style="color: #94a3b8; margin-top: 4px;">Evento: <strong> ${event.name} </strong></p>
+<hr style="border-color: #1e293b; margin: 16px 0;" />
+<p style="margin: 6px 0;"><strong>Asistente:</strong>  ${attendee.full_name} </p>
+<p style="margin: 6px 0;"><strong>RUT:</strong>  ${attendee.rut} </p>
+<p style="margin: 6px 0;"><strong>Entrada:</strong>  ${attendee.tier_name}  ($ ${ Number (attendee.price_paid).toLocaleString( 'es-CL' )} )</p>
+<div style="background: #ffffff; padding: 16px; border-radius: 8px; text-align: center; margin: 20px 0;">
+<img src="cid:qrimage" alt="QR Acceso" style="width: 220px; height: 220px;" />
+</div>
+<p style="font-size: 12px; color: #94a3b8; text-align: center;">
+Presenta este código QR junto a tu cédula de identidad en el acceso.
+</p>
+</div>
+` ,
+attachments : [
+{
+filename :  'ticket-qr.png' ,
+path : qrBase64,
+cid :  'qrimage' ,
+},
+],
+});
+return  signature;
+}
+5. Servidor API Principal ( backend/src/server.js )
+JavaScript
+import  express  from   'express' ;
+import  cors  from   'cors' ;
+import  { pool }  from   './db.js' ;
+import  { validarRUT, formatearRUT, generarFirmaQR, enviarCorreoTicket }  from   './utils.js' ;
+const  app = express();
+app.use(cors());
+app.use(express.json());
+// 1. OBTENER ESTADO DEL EVENTO ACTIVO (Verifica si ya pasó el Popup inicial)
+app.get( '/api/events/:eventId' ,  async  (req, res) => {
+try  {
+const  { eventId } = req.params;
+const  result =  await  pool.query(
+`SELECT e.*, p.name AS producer_name, p.contact_email AS producer_email
+FROM events e
+LEFT JOIN producers p ON e.producer_id = p.id
+WHERE e.id = $1` ,
+[eventId]
+);
+if  (result.rows.length ===  0 )  return  res.status( 404 ).json({  error :  'Evento no encontrado'  });
+res.json(result.rows[ 0 ]);
+}  catch  (err) {
+res.status( 500 ).json({  error : err.message });
+}
+});
+// 2. CONFIGURACIÓN ÚNICA DEL POPUP (Productora + Switch Barra)
+app.post( '/api/events/:eventId/setup' ,  async  (req, res) => {
+const  client =  await  pool.connect();
+try  {
+const  { eventId } = req.params;
+const  { producerName, producerEmail, eventName, hasBar } = req.body;
+await  client.query( 'BEGIN' );
+// Crear o actualizar productora
+const  prodRes =  await  client.query(
+`INSERT INTO producers (name, contact_email) VALUES ($1, $2) RETURNING id` ,
+[producerName, producerEmail]
+);
+const  producerId = prodRes.rows[ 0 ].id;
+// Marcar evento como configurado (is_configured = TRUE) para no volver a mostrar popup
+const  eventRes =  await  client.query(
+`UPDATE events
+SET producer_id = $1, name = COALESCE($2, name), has_bar = $3, is_configured = TRUE
+WHERE id = $4 RETURNING *` ,
+[producerId, eventName, hasBar, eventId]
+);
+await  client.query( 'COMMIT' );
+res.json({ ...eventRes.rows[ 0 ],  producer_name : producerName,  producer_email : producerEmail });
+}  catch  (err) {
+await  client.query( 'ROLLBACK' );
+res.status( 500 ).json({  error : err.message });
+}  finally  {
+client.release();
+}
+});
+// 3. REGISTRAR ASISTENTE + SUMAR INGRESO + ENVIAR QR POR CORREO
+app.post( '/api/events/:eventId/attendees' ,  async  (req, res) => {
+const  client =  await  pool.connect();
+try  {
+const  { eventId } = req.params;
+const  { fullName, rut, email, tierName, pricePaid } = req.body;
+if  (!validarRUT(rut)) {
+return  res.status( 400 ).json({  error :  'El RUT ingresado no es válido.'  });
+}
+const  rutFormateado = formatearRUT(rut);
+await  client.query( 'BEGIN' );
+// Obtener datos del evento y productora
+const  evRes =  await  client.query(
+`SELECT e.*, p.name AS producer_name, p.contact_email
+FROM events e JOIN producers p ON e.producer_id = p.id WHERE e.id = $1` ,
+[eventId]
+);
+const  eventData = evRes.rows[ 0 ];
+// Insertar asistente
+const  attRes =  await  client.query(
+`INSERT INTO attendees (event_id, full_name, rut, email, price_paid, qr_token)
+VALUES ($1, $2, $3, $4, $5, 'TEMP') RETURNING *` ,
+[eventId, fullName, rutFormateado, email, pricePaid]
+);
+const  attendee = attRes.rows[ 0 ];
+// Generar firma y actualizar token
+const  signature = generarFirmaQR(eventId, attendee.id, rutFormateado);
+await  client.query( `UPDATE attendees SET qr_token = $1 WHERE id = $2` , [signature, attendee.id]);
+// Registrar automáticamente como INGRESO en finanzas
+await  client.query(
+`INSERT INTO transactions (event_id, type, category, description, amount)
+VALUES ($1, 'INCOME', 'Entradas', $2, $3)` ,
+[eventId,  `Entrada  ${tierName}  -  ${fullName}  ( ${rutFormateado} )` , pricePaid]
+);
+// Enviar correo con el QR y nombre de la productora
+await  enviarCorreoTicket({
+attendee : { ...attendee,  tier_name : tierName },
+event : eventData,
+producer : {  name : eventData.producer_name,  contact_email : eventData.contact_email },
+});
+await  client.query( 'COMMIT' );
+res.json({  success :  true ,  attendee : { ...attendee,  qr_token : signature } });
+}  catch  (err) {
+await  client.query( 'ROLLBACK' );
+res.status( 500 ).json({  error : err.message });
+}  finally  {
+client.release();
+}
+});
+// 4. ESCANEAR QR EN PUERTA (Valida identidad y muestra Nombre + RUT)
+app.post( '/api/events/:eventId/scan' ,  async  (req, res) => {
+try  {
+const  { eventId } = req.params;
+const  { qrRawData } = req.body;  // JSON string leído por la cámara
+const  parsed =  JSON .parse(qrRawData);
+if  (parsed.eid !== eventId) {
+return  res.status( 400 ).json({  status :  'INVALID' ,  message :  'QR pertenece a otro evento'  });
+}
+const  attRes =  await  pool.query( `SELECT * FROM attendees WHERE id = $1 AND event_id = $2` , [parsed.tid, eventId]);
+if  (attRes.rows.length ===  0 ) {
+return  res.status( 404 ).json({  status :  'INVALID' ,  message :  'Entrada no encontrada'  });
+}
+const  attendee = attRes.rows[ 0 ];
+const  expectedSig = generarFirmaQR(eventId, attendee.id, attendee.rut);
+if  (parsed.sig !== expectedSig) {
+return  res.status( 403 ).json({  status :  'FAKE' ,  message :  'QR adulterado o inválido'  });
+}
+if  (attendee.is_checked_in) {
+return  res.json({
+status :  'ALREADY_USED' ,
+message :  'ESTE QR YA INGRESÓ ANTERIORMENTE' ,
+checkedInAt : attendee.checked_in_at,
+attendee : {  full_name : attendee.full_name,  rut : attendee.rut },
+});
+}
+// Marcar ingreso
+await  pool.query( `UPDATE attendees SET is_checked_in = TRUE, checked_in_at = NOW() WHERE id = $1` , [attendee.id]);
+res.json({
+status :  'VALID' ,
+message :  'ACCESO AUTORIZADO' ,
+attendee : {  full_name : attendee.full_name,  rut : attendee.rut,  price_paid : attendee.price_paid },
+});
+}  catch  (err) {
+res.status( 400 ).json({  status :  'ERROR' ,  message :  'Código QR ilegible'  });
+}
+});
+// 5. INVENTARIO DE BARRA (Cargar stock y descontar costo en gastos)
+app.post( '/api/events/:eventId/bar' ,  async  (req, res) => {
+const  client =  await  pool.connect();
+try  {
+const  { eventId } = req.params;
+const  { productName, unitCost, salePrice, initialStock } = req.body;
+await  client.query( 'BEGIN' );
+const  barRes =  await  client.query(
+`INSERT INTO bar_inventory (event_id, product_name, unit_cost, sale_price, initial_stock, current_stock)
+VALUES ($1, $2, $3, $4, $5, $5) RETURNING *` ,
+[eventId, productName, unitCost, salePrice, initialStock]
+);
+// Sumar el costo de compra de mercadería automáticamente a GASTOS
+const  totalPurchaseCost =  Number (unitCost) *  Number (initialStock);
+await  client.query(
+`INSERT INTO transactions (event_id, type, category, description, amount)
+VALUES ($1, 'EXPENSE', 'Compra Barra', $2, $3)` ,
+[eventId,  `Stock inicial:  ${initialStock} x  ${productName} ` , totalPurchaseCost]
+);
+await  client.query( 'COMMIT' );
+res.json(barRes.rows[ 0 ]);
+}  catch  (err) {
+await  client.query( 'ROLLBACK' );
+res.status( 500 ).json({  error : err.message });
+}  finally  {
+client.release();
+}
+});
+// 6. FINANZAS: OBTENER RESUMEN Y REGISTRAR INGRESOS/GASTOS MANUALES
+app.get( '/api/events/:eventId/finances' ,  async  (req, res) => {
+try  {
+const  { eventId } = req.params;
+const  txRes =  await  pool.query( `SELECT * FROM transactions WHERE event_id = $1 ORDER BY created_at DESC` , [eventId]);
+const  attRes =  await  pool.query( `SELECT * FROM attendees WHERE event_id = $1 ORDER BY created_at DESC` , [eventId]);
+const  barRes =  await  pool.query( `SELECT * FROM bar_inventory WHERE event_id = $1` , [eventId]);
+res.json({
+transactions : txRes.rows,
+attendees : attRes.rows,
+barInventory : barRes.rows,
+});
+}  catch  (err) {
+res.status( 500 ).json({  error : err.message });
+}
+});
+app.post( '/api/events/:eventId/transactions' ,  async  (req, res) => {
+try  {
+const  { eventId } = req.params;
+const  { type, category, description, amount } = req.body;
+const  result =  await  pool.query(
+`INSERT INTO transactions (event_id, type, category, description, amount) VALUES ($1, $2, $3, $4, $5) RETURNING *` ,
+[eventId, type, category, description, amount]
+);
+res.json(result.rows[ 0 ]);
+}  catch  (err) {
+res.status( 500 ).json({  error : err.message });
+}
+});
+app.listen(process.env.PORT,  () =>  {
+console .log( `API Productoras corriendo en puerto  ${process.env.PORT} ` );
+});
+PARTE 2: FRONTEND (React + Tailwind CSS)
+1. Instalación ( frontend )
+Bash
+npm create vite@latest frontend -- --template react
+cd  frontend
+npm install lucide-react html5-qrcode
+npm install -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+2. Modal Bloqueante Inicial ( frontend/src/components/SetupModal.jsx )
+Este componente bloquea toda la pantalla la primera vez que entras, pide el  Nombre de la Productora  (para el remitente de los correos) y pregunta  1 sola vez si el evento tiene barra .
+JavaScript
+import  React, { useState }  from   'react' ;
+import  { Wine, Building2, Mail, ArrowRight }  from   'lucide-react' ;
+export   default    function   SetupModal ( { eventId, onComplete } )  {
+const  [producerName, setProducerName] = useState( '' );
+const  [producerEmail, setProducerEmail] = useState( '' );
+const  [eventName, setEventName] = useState( '' );
+const  [hasBar, setHasBar] = useState( null );  // null obliga a elegir Sí o No
+const  [loading, setLoading] = useState( false );
+const  handleSubmit =  async  (e) => {
+e.preventDefault();
+if  (hasBar ===  null )  return  alert( 'Debes indicar si el evento contará con barra.' );
+setLoading( true );
+const  res =  await  fetch( `http://localhost:4000/api/events/ ${eventId} /setup` , {
+method :  'POST' ,
+headers : {  'Content-Type' :  'application/json'  },
+body :  JSON .stringify({ producerName, producerEmail, eventName, hasBar }),
+});
+const  updatedEvent =  await  res.json();
+setLoading( false );
+onComplete(updatedEvent);
+};
+return  (
+< div   className = "fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4" >
+< div   className = "bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-8 shadow-2xl text-white" >
+< span   className = "text-xs font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full" >
+Configuración Inicial del Evento
+</ span >
+< h2   className = "text-2xl font-bold mt-3" > Antes de ingresar al panel </ h2 >
+< p   className = "text-slate-400 text-sm mt-1" >
+Estos datos configurarán el remitente de los correos QR y los módulos activos.
+</ p >
+< form   onSubmit = {handleSubmit}   className = "mt-6 space-y-4" >
+< div >
+< label   className = "block text-sm font-medium text-slate-300 mb-1" >
+Nombre de la Productora (Aparecerá en los correos)
+</ label >
+< div   className = "relative" >
+< Building2   className = "w-5 h-5 text-slate-500 absolute left-3 top-2.5"  />
+< input
+type = "text"
+required
+placeholder = "Ej: Renton Producciones"
+value = {producerName}
+onChange = {(e)  =>  setProducerName(e.target.value)}
+className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white focus:border-emerald-500 outline-none"
+/>
+</ div >
+</ div >
+< div >
+< label   className = "block text-sm font-medium text-slate-300 mb-1" >
+Correo de contacto de la Productora
+</ label >
+< div   className = "relative" >
+< Mail   className = "w-5 h-5 text-slate-500 absolute left-3 top-2.5"  />
+< input
+type = "email"
+required
+placeholder = "contacto@productora.cl"
+value = {producerEmail}
+onChange = {(e)  =>  setProducerEmail(e.target.value)}
+className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white focus:border-emerald-500 outline-none"
+/>
+</ div >
+</ div >
+< div >
+< label   className = "block text-sm font-medium text-slate-300 mb-1" >
+Nombre del Evento
+</ label >
+< input
+type = "text"
+required
+placeholder = "Ej: Fiesta Electrónica Vol. 1"
+value = {eventName}
+onChange = {(e)  =>  setEventName(e.target.value)}
+className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-emerald-500 outline-none"
+/>
+</ div >
+< div   className = "pt-2" >
+< label   className = "block text-sm font-medium text-slate-300 mb-2" >
+¿Este evento contará con Barra de Tragos?
+</ label >
+< div   className = "grid grid-cols-2 gap-3" >
+< button
+type = "button"
+onClick = {()  =>  setHasBar(true)}
+className={`p-4 rounded-xl border text-left transition flex items-center gap-3 ${
+hasBar === true
+? 'bg-emerald-500/20 border-emerald-500 text-white'
+: 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+}`}
+>
+< Wine   className = "w-6 h-6 text-emerald-400"  />
+< div >
+< div   className = "font-bold" > SÍ, tiene barra </ div >
+< div   className = "text-xs opacity-75" > Abrir panel de stock </ div >
+</ div >
+</ button >
+< button
+type = "button"
+onClick = {()  =>  setHasBar(false)}
+className={`p-4 rounded-xl border text-left transition ${
+hasBar === false
+? 'bg-blue-500/20 border-blue-500 text-white'
+: 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+}`}
+>
+< div   className = "font-bold" > NO tiene barra </ div >
+< div   className = "text-xs opacity-75" > Ocultar módulo barra </ div >
+</ button >
+</ div >
+</ div >
+< button
+type = "submit"
+disabled = {loading}
+className = "w-full mt-6 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition"
+>
+{loading ? 'Guardando...' : 'Ingresar al Sistema'}
+< ArrowRight   className = "w-5 h-5"  />
+</ button >
+</ form >
+</ div >
+</ div >
+);
+}
+3. Escáner de Puerta ( frontend/src/components/ScannerModule.jsx )
+Lee el QR con la cámara del celular y muestra en gigante el  Nombre  y  RUT  para cotejar con el carnet.
+JavaScript
+import  React, { useEffect, useState }  from   'react' ;
+import  { Html5QrcodeScanner }  from   'html5-qrcode' ;
+import  { CheckCircle2, XCircle, AlertTriangle }  from   'lucide-react' ;
+export   default    function   ScannerModule ( { eventId } )  {
+const  [scanResult, setScanResult] = useState( null );
+useEffect( () =>  {
+const  scanner =  new  Html5QrcodeScanner( 'qr-reader' , {  fps :  10 ,  qrbox :  250  });
+scanner.render( async  (decodedText) => {
+scanner.pause();
+const  res =  await  fetch( `http://localhost:4000/api/events/ ${eventId} /scan` , {
+method :  'POST' ,
+headers : {  'Content-Type' :  'application/json'  },
+body :  JSON .stringify({  qrRawData : decodedText }),
+});
+const  data =  await  res.json();
+setScanResult(data);
+});
+return   () =>  scanner.clear().catch( () =>  {});
+}, [eventId]);
+const  resetScanner =  () =>  {
+setScanResult( null );
+window .location.reload();  // Reinicia cámara limpio
+};
+return  (
+< div   className = "max-w-md mx-auto" >
+< h2   className = "text-xl font-bold mb-4 text-center" > Control de Acceso QR </ h2 >
+{!scanResult ? (
+< div   id = "qr-reader"   className = "rounded-xl overflow-hidden bg-slate-900 border border-slate-800"  />
+) : (
+< div
+className = { ` p-6   rounded-2xl   text-center   border-2  ${
+scanResult.status  ===  'VALID'
+? ' bg-emerald-950 / 80   border-emerald-500 '
+:   scanResult.status  ===  'ALREADY_USED'
+? ' bg-amber-950 / 80   border-amber-500 '
+:  ' bg-red-950 / 80   border-red-500 '
+}`}
+>
+{scanResult.status === 'VALID' &&  < CheckCircle2   className = "w-16 h-16 text-emerald-400 mx-auto mb-2"  /> }
+{scanResult.status === 'ALREADY_USED' &&  < AlertTriangle   className = "w-16 h-16 text-amber-400 mx-auto mb-2"  /> }
+{['INVALID', 'FAKE', 'ERROR'].includes(scanResult.status) && (
+< XCircle   className = "w-16 h-16 text-red-400 mx-auto mb-2"  />
+)}
+< h3   className = "text-2xl font-black uppercase" > {scanResult.message} </ h3 >
+{scanResult.attendee && (
+< div   className = "mt-4 bg-slate-950/70 p-4 rounded-xl text-left space-y-2 border border-white/10" >
+< div >
+< span   className = "text-xs text-slate-400 block" > ASISTENTE: </ span >
+< span   className = "text-xl font-bold text-white" > {scanResult.attendee.full_name} </ span >
+</ div >
+< div >
+< span   className = "text-xs text-slate-400 block" > RUT (VALIDAR CARNET): </ span >
+< span   className = "text-2xl font-mono font-black text-emerald-400" > {scanResult.attendee.rut} </ span >
+</ div >
+</ div >
+)}
+< button
+onClick = {resetScanner}
+className = "mt-6 w-full py-3 bg-white text-slate-950 font-bold rounded-xl hover:bg-slate-200"
+>
+Escanear Siguiente Entrada
+</ button >
+</ div >
+)}
+</ div >
+);
+}
+4. Controlador Principal ( frontend/src/App.jsx )
+Orquesta el bloqueo inicial, abre automáticamente la pestaña de  Stock de Barra  si seleccionaste "SÍ tiene barra", y conecta los módulos de Asistentes, Escáner y Finanzas.
+JavaScript
+import  React, { useEffect, useState }  from   'react' ;
+import  SetupModal  from   './components/SetupModal' ;
+import  ScannerModule  from   './components/ScannerModule' ;
+import  { Users, QrCode, Wine, DollarSign }  from   'lucide-react' ;
+// ID de evento de prueba (en producción viene de la URL /events/:id)
+const  CURRENT_EVENT_ID =  '11111111-1111-1111-1111-111111111111' ;
+export   default    function   App (  )  {
+const  [eventData, setEventData] = useState( null );
+const  [activeTab, setActiveTab] = useState( 'finance' );
+const  [data, setData] = useState({  transactions : [],  attendees : [],  barInventory : [] });
+// Formularios rápidos
+const  [attForm, setAttForm] = useState({  fullName :  '' ,  rut :  '' ,  email :  '' ,  tierName :  'Preventa 1' ,  pricePaid :  10000  });
+const  [txForm, setTxForm] = useState({  type :  'EXPENSE' ,  category :  'DJs / Artistas' ,  description :  '' ,  amount :  ''  });
+const  [barForm, setBarForm] = useState({  productName :  '' ,  unitCost :  '' ,  salePrice :  '' ,  initialStock :  ''  });
+const  loadData =  async  () => {
+const  evRes =  await  fetch( `http://localhost:4000/api/events/ ${CURRENT_EVENT_ID} ` );
+const  ev =  await  evRes.json();
+setEventData(ev);
+const  finRes =  await  fetch( `http://localhost:4000/api/events/ ${CURRENT_EVENT_ID} /finances` );
+const  fin =  await  finRes.json();
+setData(fin);
+};
+useEffect( () =>  {
+loadData();
+}, []);
+// Al terminar el popup inicial: si tiene barra, abre directo el panel de stock
+const  handleSetupComplete =  ( updatedEvent ) =>  {
+setEventData(updatedEvent);
+if  (updatedEvent.has_bar) {
+setActiveTab( 'bar' );
+}  else  {
+setActiveTab( 'attendees' );
+}
+};
+const  handleAddAttendee =  async  (e) => {
+e.preventDefault();
+const  res =  await  fetch( `http://localhost:4000/api/events/ ${CURRENT_EVENT_ID} /attendees` , {
+method :  'POST' ,
+headers : {  'Content-Type' :  'application/json'  },
+body :  JSON .stringify(attForm),
+});
+const  result =  await  res.json();
+if  (!res.ok)  return  alert(result.error);
+alert( 'Asistente registrado y QR enviado al correo con el nombre de '  + eventData.producer_name);
+setAttForm({  fullName :  '' ,  rut :  '' ,  email :  '' ,  tierName :  'Preventa 1' ,  pricePaid :  10000  });
+loadData();
+};
+const  handleAddBar =  async  (e) => {
+e.preventDefault();
+await  fetch( `http://localhost:4000/api/events/ ${CURRENT_EVENT_ID} /bar` , {
+method :  'POST' ,
+headers : {  'Content-Type' :  'application/json'  },
+body :  JSON .stringify(barForm),
+});
+setBarForm({  productName :  '' ,  unitCost :  '' ,  salePrice :  '' ,  initialStock :  ''  });
+loadData();
+};
+const  handleAddTransaction =  async  (e) => {
+e.preventDefault();
+await  fetch( `http://localhost:4000/api/events/ ${CURRENT_EVENT_ID} /transactions` , {
+method :  'POST' ,
+headers : {  'Content-Type' :  'application/json'  },
+body :  JSON .stringify(txForm),
+});
+setTxForm({  type :  'EXPENSE' ,  category :  'DJs / Artistas' ,  description :  '' ,  amount :  ''  });
+loadData();
+};
+if  (!eventData)  return    < div   className = "min-h-screen bg-slate-950 text-white p-10" > Cargando sistema... </ div >  ;
+// Cálculos financieros en tiempo real
+const  totalIncome = data.transactions.filter( ( t ) =>  t.type ===  'INCOME' ).reduce( ( acc, t ) =>  acc +  Number (t.amount),  0 );
+const  totalExpense = data.transactions.filter( ( t ) =>  t.type ===  'EXPENSE' ).reduce( ( acc, t ) =>  acc +  Number (t.amount),  0 );
+const  netProfit = totalIncome - totalExpense;
+return  (
+< div   className = "min-h-screen bg-slate-950 text-slate-100" >
+{/* POPUP BLOQUEANTE DE 1 SOLA VEZ */}
+{!eventData.is_configured &&  < SetupModal   eventId = {CURRENT_EVENT_ID}   onComplete = {handleSetupComplete}  /> }
+{/* HEADER */}
+< header   className = "border-b border-slate-800 bg-slate-900/60 px-6 py-4 flex flex-wrap justify-between items-center gap-4" >
+< div >
+< span   className = "text-xs font-bold text-emerald-400 uppercase tracking-wider" > {eventData.producer_name} </ span >
+< h1   className = "text-xl font-bold" > {eventData.name} </ h1 >
+</ div >
+{/* NAVEGACIÓN DE MÓDULOS */}
+< nav   className = "flex gap-2" >
+< button   onClick = {()  =>  setActiveTab('finance')} className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium ${activeTab === 'finance' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800'}`}>
+< DollarSign   className = "w-4 h-4"  />  Ingresos y Gastos
+</ button >
+< button   onClick = {()  =>  setActiveTab('attendees')} className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium ${activeTab === 'attendees' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800'}`}>
+< Users   className = "w-4 h-4"  />  Entradas & QR ({data.attendees.length})
+</ button >
+{eventData.has_bar && (
+< button   onClick = {()  =>  setActiveTab('bar')} className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium ${activeTab === 'bar' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800'}`}>
+< Wine   className = "w-4 h-4"  />  Stock Barra
+</ button >
+)}
+< button   onClick = {()  =>  setActiveTab('scanner')} className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium ${activeTab === 'scanner' ? 'bg-blue-500 text-white' : 'bg-slate-800'}`}>
+< QrCode   className = "w-4 h-4"  />  Escáner Puerta
+</ button >
+</ nav >
+</ header >
+< main   className = "max-w-6xl mx-auto p-6" >
+{/* MÓDULO 1: FINANZAS */}
+{activeTab === 'finance' && (
+< div   className = "space-y-6" >
+< div   className = "grid grid-cols-1 md:grid-cols-3 gap-4" >
+< div   className = "bg-slate-900 p-5 rounded-xl border border-slate-800" >
+< span   className = "text-sm text-slate-400" > Ingresos Totales </ span >
+< div   className = "text-2xl font-bold text-emerald-400 mt-1" > ${totalIncome.toLocaleString('es-CL')} </ div >
+</ div >
+< div   className = "bg-slate-900 p-5 rounded-xl border border-slate-800" >
+< span   className = "text-sm text-slate-400" > Gastos Totales </ span >
+< div   className = "text-2xl font-bold text-red-400 mt-1" > ${totalExpense.toLocaleString('es-CL')} </ div >
+</ div >
+< div   className = "bg-slate-900 p-5 rounded-xl border border-slate-800" >
+< span   className = "text-sm text-slate-400" > Balance / Utilidad Neta </ span >
+< div   className = { ` text-2xl   font-bold   mt-1  ${ netProfit  > = 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+${netProfit.toLocaleString('es-CL')}
+</ div >
+</ div >
+</ div >
+< form   onSubmit = {handleAddTransaction}   className = "bg-slate-900 p-5 rounded-xl border border-slate-800 grid grid-cols-1 md:grid-cols-5 gap-3" >
+< select   value = {txForm.type}   onChange = {(e)  =>  setTxForm({ ...txForm, type: e.target.value })} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2">
+< option   value = "EXPENSE" > Gasto (-) </ option >
+< option   value = "INCOME" > Ingreso Extra (+) </ option >
+</ select >
+< input   type = "text"   placeholder = "Categoría (Ej: DJ, Local)"   value = {txForm.category}   onChange = {(e)  =>  setTxForm({ ...txForm, category: e.target.value })} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2" required />
+< input   type = "text"   placeholder = "Descripción"   value = {txForm.description}   onChange = {(e)  =>  setTxForm({ ...txForm, description: e.target.value })} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2" required />
+< input   type = "number"   placeholder = "Monto ($)"   value = {txForm.amount}   onChange = {(e)  =>  setTxForm({ ...txForm, amount: e.target.value })} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2" required />
+< button   type = "submit"   className = "bg-emerald-500 text-slate-950 font-bold rounded-lg px-4 py-2" > Registrar </ button >
+</ form >
+< div   className = "bg-slate-900 rounded-xl border border-slate-800 overflow-hidden" >
+< table   className = "w-full text-left text-sm" >
+< thead   className = "bg-slate-950 text-slate-400" >
+< tr >
+< th   className = "p-3" > Tipo </ th >
+< th   className = "p-3" > Categoría </ th >
+< th   className = "p-3" > Detalle </ th >
+< th   className = "p-3 text-right" > Monto </ th >
+</ tr >
+</ thead >
+< tbody   className = "divide-y divide-slate-800" >
+{data.transactions.map((t) => (
+< tr   key = {t.id} >
+< td   className = "p-3 font-bold" > {t.type === 'INCOME' ?  < span   className = "text-emerald-400" > INGRESO </ span >  :  < span   className = "text-red-400" > GASTO </ span > } </ td >
+< td   className = "p-3" > {t.category} </ td >
+< td   className = "p-3 text-slate-300" > {t.description} </ td >
+< td   className = "p-3 text-right font-mono" > ${Number(t.amount).toLocaleString('es-CL')} </ td >
+</ tr >
+))}
+</ tbody >
+</ table >
+</ div >
+</ div >
+)}
+{/* MÓDULO 2: ASISTENTES Y EMISIÓN DE QR */}
+{activeTab === 'attendees' && (
+< div   className = "space-y-6" >
+< form   onSubmit = {handleAddAttendee}   className = "bg-slate-900 p-5 rounded-xl border border-slate-800 grid grid-cols-1 md:grid-cols-6 gap-3" >
+< input   type = "text"   placeholder = "Nombre Completo"   value = {attForm.fullName}   onChange = {(e)  =>  setAttForm({ ...attForm, fullName: e.target.value })} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2" required />
+< input   type = "text"   placeholder = "RUT (12.345.678-9)"   value = {attForm.rut}   onChange = {(e)  =>  setAttForm({ ...attForm, rut: e.target.value })} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2" required />
+< input   type = "email"   placeholder = "Correo para enviar QR"   value = {attForm.email}   onChange = {(e)  =>  setAttForm({ ...attForm, email: e.target.value })} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2" required />
+< input   type = "text"   placeholder = "Tipo (Preventa 1)"   value = {attForm.tierName}   onChange = {(e)  =>  setAttForm({ ...attForm, tierName: e.target.value })} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2" required />
+< input   type = "number"   placeholder = "Precio ($)"   value = {attForm.pricePaid}   onChange = {(e)  =>  setAttForm({ ...attForm, pricePaid: e.target.value })} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2" required />
+< button   type = "submit"   className = "bg-emerald-500 text-slate-950 font-bold rounded-lg px-4 py-2" > Emitir y Enviar QR </ button >
+</ form >
+< div   className = "bg-slate-900 rounded-xl border border-slate-800 overflow-hidden" >
+< table   className = "w-full text-left text-sm" >
+< thead   className = "bg-slate-950 text-slate-400" >
+< tr >
+< th   className = "p-3" > Nombre </ th >
+< th   className = "p-3" > RUT </ th >
+< th   className = "p-3" > Correo </ th >
+< th   className = "p-3" > Pagado </ th >
+< th   className = "p-3" > Estado Puerta </ th >
+</ tr >
+</ thead >
+< tbody   className = "divide-y divide-slate-800" >
+{data.attendees.map((a) => (
+< tr   key = {a.id} >
+< td   className = "p-3 font-medium" > {a.full_name} </ td >
+< td   className = "p-3 font-mono" > {a.rut} </ td >
+< td   className = "p-3 text-slate-400" > {a.email} </ td >
+< td   className = "p-3 font-mono" > ${Number(a.price_paid).toLocaleString('es-CL')} </ td >
+< td   className = "p-3" >
+{a.is_checked_in ? (
+< span   className = "bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded text-xs font-bold" > INGRESÓ </ span >
+) : (
+< span   className = "bg-slate-800 text-slate-400 px-2 py-1 rounded text-xs" > PENDIENTE </ span >
+)}
+</ td >
+</ tr >
+))}
+</ tbody >
+</ table >
+</ div >
+</ div >
+)}
+{/* MÓDULO 3: STOCK DE BARRA (SOLO SI has_bar === true) */}
+{activeTab === 'bar' && eventData.has_bar && (
+< div   className = "space-y-6" >
+< form   onSubmit = {handleAddBar}   className = "bg-slate-900 p-5 rounded-xl border border-slate-800 grid grid-cols-1 md:grid-cols-5 gap-3" >
+< input   type = "text"   placeholder = "Producto (Ej: Alto del Carmen 1L)"   value = {barForm.productName}   onChange = {(e)  =>  setBarForm({ ...barForm, productName: e.target.value })} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2" required />
+< input   type = "number"   placeholder = "Costo Unitario ($)"   value = {barForm.unitCost}   onChange = {(e)  =>  setBarForm({ ...barForm, unitCost: e.target.value })} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2" required />
+< input   type = "number"   placeholder = "Precio Venta ($)"   value = {barForm.salePrice}   onChange = {(e)  =>  setBarForm({ ...barForm, salePrice: e.target.value })} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2" required />
+< input   type = "number"   placeholder = "Cantidad Inicial"   value = {barForm.initialStock}   onChange = {(e)  =>  setBarForm({ ...barForm, initialStock: e.target.value })} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2" required />
+< button   type = "submit"   className = "bg-emerald-500 text-slate-950 font-bold rounded-lg px-4 py-2" > Agregar Stock </ button >
+</ form >
+< div   className = "bg-slate-900 rounded-xl border border-slate-800 overflow-hidden" >
+< table   className = "w-full text-left text-sm" >
+< thead   className = "bg-slate-950 text-slate-400" >
+< tr >
+< th   className = "p-3" > Producto </ th >
+< th   className = "p-3" > Stock Inicial </ th >
+< th   className = "p-3" > Costo Compra </ th >
+< th   className = "p-3" > Precio Venta </ th >
+< th   className = "p-3" > Venta Proyectada </ th >
+</ tr >
+</ thead >
+< tbody   className = "divide-y divide-slate-800" >
+{data.barInventory.map((b) => (
+< tr   key = {b.id} >
+< td   className = "p-3 font-medium" > {b.product_name} </ td >
+< td   className = "p-3 font-bold" > {b.initial_stock} un. </ td >
+< td   className = "p-3 text-red-400 font-mono" > ${(b.unit_cost * b.initial_stock).toLocaleString('es-CL')} </ td >
+< td   className = "p-3 font-mono" > ${Number(b.sale_price).toLocaleString('es-CL')} </ td >
+< td   className = "p-3 text-emerald-400 font-mono" > ${(b.sale_price * b.initial_stock).toLocaleString('es-CL')} </ td >
+</ tr >
+))}
+</ tbody >
+</ table >
+</ div >
+</ div >
+)}
+{/* MÓDULO 4: ESCÁNER DE PUERTA */}
+{activeTab === 'scanner' &&  < ScannerModule   eventId = {CURRENT_EVENT_ID}  /> }
+</ main >
+</ div >
+);
+}
+Siguiente Paso
+Para probarlo de inmediato en tu PostgreSQL, ejecuta el esquema SQL de la respuesta anterior e inserta el evento inicial sin configurar para que te salte el popup apenas abras el frontend:
+SQL
+INSERT   INTO  events (id, name, event_date, has_bar, is_configured)
+VALUES  ( '11111111-1111-1111-1111-111111111111' ,  'Nuevo Evento' , NOW(),  FALSE ,  FALSE );
+¿Qué parte quieres que profundicemos ahora: el  arqueo/cierre de barra  (para calcular lo que sobró vs. lo recaudado en caja), el  sistema multi-evento  (para crear y cambiar entre distintas fiestas desde un selector), o los  Dockerfiles  para desplegarlo en tu VPS?
