@@ -438,8 +438,8 @@ app.post('/api/events/:eventId/scan', scanLimiter, async (req, res) => {
     let attendee;
 
     if (isManualRut) {
-      // Búsqueda directa por RUT acreditado
-      attendee = await db.get('SELECT * FROM attendees WHERE rut = $1 AND event_id = $2', [manualRutFormatted, eventId]);
+      // Búsqueda directa por RUT acreditado (prioriza entradas no utilizadas si compró más de una)
+      attendee = await db.get('SELECT * FROM attendees WHERE rut = $1 AND event_id = $2 ORDER BY is_checked_in ASC LIMIT 1', [manualRutFormatted, eventId]);
       if (!attendee) {
         return res.status(404).json({
           status: 'NOT_FOUND',
