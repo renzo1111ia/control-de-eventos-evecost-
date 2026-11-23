@@ -44,7 +44,7 @@ export async function initDatabase() {
       name TEXT NOT NULL,
       contact_email TEXT NOT NULL,
       logo_url TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
@@ -57,7 +57,7 @@ export async function initDatabase() {
       event_date TEXT NOT NULL,
       has_bar INTEGER DEFAULT 0,
       is_configured INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (producer_id) REFERENCES producers(id) ON DELETE SET NULL
     );
   `);
@@ -70,7 +70,7 @@ export async function initDatabase() {
       name TEXT NOT NULL,
       price REAL NOT NULL,
       capacity INTEGER NOT NULL,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
     );
   `);
@@ -89,7 +89,7 @@ export async function initDatabase() {
       qr_token TEXT UNIQUE NOT NULL,
       is_checked_in INTEGER DEFAULT 0,
       checked_in_at TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
       FOREIGN KEY (tier_id) REFERENCES ticket_tiers(id) ON DELETE SET NULL
     );
@@ -105,7 +105,7 @@ export async function initDatabase() {
       description TEXT,
       amount REAL NOT NULL,
       payment_method TEXT DEFAULT 'TRANSFER',
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
     );
   `);
@@ -120,7 +120,7 @@ export async function initDatabase() {
       sale_price REAL NOT NULL,
       initial_stock INTEGER NOT NULL,
       current_stock INTEGER NOT NULL,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
     );
   `);
@@ -136,7 +136,7 @@ export async function initDatabase() {
       unit_price REAL NOT NULL,
       total_amount REAL NOT NULL,
       payment_method TEXT DEFAULT 'CARD',
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
       FOREIGN KEY (product_id) REFERENCES bar_inventory(id) ON DELETE CASCADE
     );
@@ -152,7 +152,7 @@ export async function initDatabase() {
       discrepancy REAL NOT NULL,
       items_breakdown TEXT,
       notes TEXT,
-      closed_at TEXT DEFAULT (datetime('now')),
+      closed_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
     );
   `);
@@ -172,7 +172,7 @@ export async function initDatabase() {
       action TEXT NOT NULL,
       details TEXT,
       ip_address TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
@@ -185,7 +185,7 @@ export async function initDatabase() {
       role TEXT NOT NULL,
       courtesy_budget INTEGER DEFAULT 0,
       notes TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
     );
   `);
@@ -206,7 +206,7 @@ export async function initDatabase() {
       recipient_role TEXT NOT NULL,
       quantity INTEGER NOT NULL DEFAULT 1,
       notes TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
       FOREIGN KEY (product_id) REFERENCES bar_inventory(id) ON DELETE CASCADE,
       FOREIGN KEY (recipient_id) REFERENCES bar_courtesy_recipients(id) ON DELETE CASCADE
@@ -219,7 +219,7 @@ export async function initDatabase() {
     const defaultEventId = '11111111-1111-1111-1111-111111111111';
     await db.run(
       `INSERT INTO events (id, name, event_date, has_bar, is_configured)
-       VALUES ($1, $2, datetime('now', '+7 days'), 0, 0)`,
+       VALUES ($1, $2, CURRENT_TIMESTAMP, 0, 0)`,
       [defaultEventId, 'Nuevo Evento de Productora']
     );
 

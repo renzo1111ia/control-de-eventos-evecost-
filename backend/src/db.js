@@ -9,10 +9,12 @@ let isPostgres = false;
 let pgPool = null;
 let sqliteDb = null;
 
-if (config.databaseUrl && config.databaseUrl.startsWith('postgres')) {
+const cleanDbUrl = (config.databaseUrl || '').trim().replace(/^['"]|['"]$/g, '');
+
+if (cleanDbUrl && cleanDbUrl.startsWith('postgres')) {
   isPostgres = true;
   pgPool = new pg.Pool({
-    connectionString: config.databaseUrl,
+    connectionString: cleanDbUrl,
     ssl: {
       rejectUnauthorized: false
     }
