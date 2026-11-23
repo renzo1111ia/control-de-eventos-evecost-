@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -60,7 +60,7 @@ export default function FinanceModule({ eventId, financeData, onRefresh }) {
 
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}/transactions`, {
+      const res = await fetch(`${API_URL}/api/events/${eventId}/transactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -85,7 +85,7 @@ export default function FinanceModule({ eventId, financeData, onRefresh }) {
   const handleDeleteTransaction = async (txId) => {
     if (!confirm('¿Estás seguro de eliminar este registro contable?')) return;
     try {
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}/transactions/${txId}`, {
+      const res = await fetch(`${API_URL}/api/events/${eventId}/transactions/${txId}`, {
         method: 'DELETE'
       });
       if (!res.ok) throw new Error('Error al eliminar');

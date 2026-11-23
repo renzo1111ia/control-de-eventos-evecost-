@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { ShieldCheck, AlertTriangle, Clock, RefreshCw, Key, Database } from 'lucide-react';
 
 export default function AuditModule({ eventId }) {
@@ -8,7 +8,7 @@ export default function AuditModule({ eventId }) {
   const fetchLogs = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}/audit`);
+      const res = await fetch(`${API_URL}/api/events/${eventId}/audit`);
       const data = await res.json();
       setLogs(data);
     } catch (err) {

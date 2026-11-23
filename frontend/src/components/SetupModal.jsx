@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Wine, Building2, Mail, Calendar, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
 
 export default function SetupModal({ eventId, onComplete, defaultEventName = '' }) {
@@ -27,7 +27,7 @@ export default function SetupModal({ eventId, onComplete, defaultEventName = '' 
     try {
       setLoading(true);
       setError('');
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}/setup`, {
+      const res = await fetch(`${API_URL}/api/events/${eventId}/setup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

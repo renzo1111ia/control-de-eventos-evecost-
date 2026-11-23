@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar.jsx';
 import SetupModal from './components/SetupModal.jsx';
 import EventSelectorModal from './components/EventSelectorModal.jsx';
@@ -7,6 +7,7 @@ import AttendeesModule from './components/AttendeesModule.jsx';
 import BarStockModule from './components/BarStockModule.jsx';
 import ScannerModule from './components/ScannerModule.jsx';
 import AuditModule from './components/AuditModule.jsx';
+import { API_URL } from './utils/api.js';
 
 export default function App() {
   const [events, setEvents] = useState([]);
@@ -24,7 +25,7 @@ export default function App() {
   // 1. Cargar lista de eventos
   const fetchEvents = async () => {
     try {
-      const res = await fetch('http://localhost:4000/api/events');
+      const res = await fetch(`${API_URL}/api/events`);
       const data = await res.json();
       setEvents(data);
       if (data.length > 0 && !currentEventId) {
@@ -40,24 +41,24 @@ export default function App() {
     if (!eventId) return;
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}`);
+      const res = await fetch(`${API_URL}/api/events/${eventId}`);
       if (!res.ok) throw new Error('Evento no encontrado');
       const data = await res.json();
       setEventData(data);
 
       // Cargar datos financieros
-      const finRes = await fetch(`http://localhost:4000/api/events/${eventId}/finances`);
+      const finRes = await fetch(`${API_URL}/api/events/${eventId}/finances`);
       const finData = await finRes.json();
       setFinanceData(finData);
 
       // Cargar asistentes
-      const attRes = await fetch(`http://localhost:4000/api/events/${eventId}/attendees`);
+      const attRes = await fetch(`${API_URL}/api/events/${eventId}/attendees`);
       const attData = await attRes.json();
       setAttendees(attData);
 
       // Cargar barra (si aplica)
       if (data.has_bar) {
-        const barRes = await fetch(`http://localhost:4000/api/events/${eventId}/bar`);
+        const barRes = await fetch(`${API_URL}/api/events/${eventId}/bar`);
         const bData = await barRes.json();
         setBarData(bData);
       }
@@ -93,7 +94,7 @@ export default function App() {
   // Crear nuevo evento
   const handleCreateEvent = async (name, date) => {
     try {
-      const res = await fetch('http://localhost:4000/api/events', {
+      const res = await fetch(`${API_URL}/api/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, eventDate: date })
@@ -110,7 +111,7 @@ export default function App() {
   // Eliminar evento
   const handleDeleteEvent = async (eventId, eventName) => {
     try {
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}`, {
+      const res = await fetch(`${API_URL}/api/events/${eventId}`, {
         method: 'DELETE'
       });
       if (!res.ok) {

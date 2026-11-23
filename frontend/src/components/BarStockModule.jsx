@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   Wine,
   Plus,
@@ -129,7 +129,7 @@ export default function BarStockModule({ eventId, barData = {}, onRefresh }) {
     if (!confirm(`¿Eliminar el producto "${productName}" de la barra? También se anulará el gasto de compra inicial en finanzas.`)) return;
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}/bar/${productId}`, {
+      const res = await fetch(`${API_URL}/api/events/${eventId}/bar/${productId}`, {
         method: 'DELETE'
       });
       if (!res.ok) {
@@ -150,7 +150,7 @@ export default function BarStockModule({ eventId, barData = {}, onRefresh }) {
   const handleCancelCourtesy = async (courtesyId, productName, recipientName, qty) => {
     if (!confirm(`¿Anular la entrega de ${qty}x "${productName}" a ${recipientName}? El stock será devuelto automáticamente al inventario.`)) return;
     try {
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}/bar/courtesy/${courtesyId}`, {
+      const res = await fetch(`${API_URL}/api/events/${eventId}/bar/courtesy/${courtesyId}`, {
         method: 'DELETE'
       });
       if (!res.ok) {
@@ -171,7 +171,7 @@ export default function BarStockModule({ eventId, barData = {}, onRefresh }) {
     if (!productName || !unitCost || !salePrice || !initialStock) return;
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}/bar`, {
+      const res = await fetch(`${API_URL}/api/events/${eventId}/bar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -200,7 +200,7 @@ export default function BarStockModule({ eventId, barData = {}, onRefresh }) {
       return;
     }
     try {
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}/bar/sale`, {
+      const res = await fetch(`${API_URL}/api/events/${eventId}/bar/sale`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ productId: product.id, quantity: qty, paymentMethod: method })
@@ -237,7 +237,7 @@ export default function BarStockModule({ eventId, barData = {}, onRefresh }) {
     }
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}/bar/courtesy`, {
+      const res = await fetch(`${API_URL}/api/events/${eventId}/bar/courtesy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -267,7 +267,7 @@ export default function BarStockModule({ eventId, barData = {}, onRefresh }) {
     if (!newRecipientName.trim()) return;
     try {
       setRecipientLoading(true);
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}/bar/courtesy-recipients`, {
+      const res = await fetch(`${API_URL}/api/events/${eventId}/bar/courtesy-recipients`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newRecipientName.trim(), role: newRecipientRole, courtesyBudget: parseInt(newRecipientBudget, 10) || 0 })
@@ -292,7 +292,7 @@ export default function BarStockModule({ eventId, barData = {}, onRefresh }) {
   const handleDeleteRecipient = async (recipientId) => {
     if (!confirm('¿Eliminar este destinatario?')) return;
     try {
-      await fetch(`http://localhost:4000/api/events/${eventId}/bar/courtesy-recipients/${recipientId}`, {
+      await fetch(`${API_URL}/api/events/${eventId}/bar/courtesy-recipients/${recipientId}`, {
         method: 'DELETE'
       });
       onRefresh();
@@ -312,7 +312,7 @@ export default function BarStockModule({ eventId, barData = {}, onRefresh }) {
     }
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}/bar/closing`, {
+      const res = await fetch(`${API_URL}/api/events/${eventId}/bar/closing`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

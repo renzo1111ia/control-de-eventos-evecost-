@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
-import { 
-  Users, 
-  UserPlus, 
-  Search, 
-  QrCode, 
-  Mail, 
-  CheckCircle2, 
-  Clock, 
-  Download, 
+﻿import React, { useState } from 'react';
+import {
+  Users,
+  UserPlus,
+  Search,
+  QrCode,
+  Mail,
+  CheckCircle2,
+  Clock,
+  Download,
   X,
   CreditCard,
   AlertCircle,
@@ -59,7 +59,7 @@ export default function AttendeesModule({ eventId, attendees = [], tiers = [], o
     if (!newTierName.trim() || newTierPrice === '') return;
     try {
       setTierLoading(true);
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}/tiers`, {
+      const res = await fetch(`${API_URL}/api/events/${eventId}/tiers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -90,7 +90,7 @@ export default function AttendeesModule({ eventId, attendees = [], tiers = [], o
   const handleDeleteTier = async (tierId, tierName) => {
     if (!confirm(`¿Eliminar el tipo de entrada "${tierName}"?`)) return;
     try {
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}/tiers/${tierId}`, {
+      const res = await fetch(`${API_URL}/api/events/${eventId}/tiers/${tierId}`, {
         method: 'DELETE'
       });
       if (!res.ok) {
@@ -126,7 +126,7 @@ export default function AttendeesModule({ eventId, attendees = [], tiers = [], o
 
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}/attendees`, {
+      const res = await fetch(`${API_URL}/api/events/${eventId}/attendees`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -175,7 +175,7 @@ export default function AttendeesModule({ eventId, attendees = [], tiers = [], o
   const handleDeleteAttendee = async (attendeeId, attendeeName) => {
     if (!confirm(`¿Estás seguro de eliminar la entrada de "${attendeeName}"? Esto también anulará el ingreso registrado en finanzas.`)) return;
     try {
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}/attendees/${attendeeId}`, {
+      const res = await fetch(`${API_URL}/api/events/${eventId}/attendees/${attendeeId}`, {
         method: 'DELETE'
       });
       if (!res.ok) {
@@ -363,9 +363,8 @@ export default function AttendeesModule({ eventId, attendees = [], tiers = [], o
                   placeholder="12.345.678-9"
                   value={rut}
                   onChange={handleRutChange}
-                  className={`w-full bg-slate-950 border rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none font-mono ${
-                    rutError ? 'border-red-500' : 'border-slate-700'
-                  }`}
+                  className={`w-full bg-slate-950 border rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none font-mono ${rutError ? 'border-red-500' : 'border-slate-700'
+                    }`}
                 />
                 {rutError && (
                   <span className="text-[11px] text-red-400 mt-1 block">{rutError}</span>

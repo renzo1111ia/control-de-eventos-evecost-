@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+﻿import React, { useEffect, useState, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { 
   CheckCircle2, 
@@ -58,7 +58,7 @@ export default function ScannerModule({ eventId, onScanSuccess }) {
   const processQrData = async (rawData) => {
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}/scan`, {
+      const res = await fetch(`${API_URL}/api/events/${eventId}/scan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ qrRawData: rawData })
