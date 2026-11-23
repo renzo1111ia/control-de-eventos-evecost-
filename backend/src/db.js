@@ -37,7 +37,9 @@ function normalizeQuery(sql) {
 }
 
 export const db = {
-  isPostgres,
+  get isPostgres() {
+    return isPostgres;
+  },
 
   generateUUID() {
     return crypto.randomUUID();

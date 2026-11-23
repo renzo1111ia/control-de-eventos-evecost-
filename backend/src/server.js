@@ -98,7 +98,7 @@ app.post('/api/events', async (req, res) => {
 
     await db.run(
       `INSERT INTO events (id, producer_id, name, event_date, has_bar, is_configured)
-       VALUES ($1, $2, $3, $4, 0, 0)`,
+       VALUES ($1, $2, $3, $4, false, false)`,
       [eventId, producerId || null, name || 'Nuevo Evento', date]
     );
 
@@ -264,9 +264,9 @@ app.post('/api/events/:eventId/setup', async (req, res) => {
         SET producer_id = $1,
             name = COALESCE($2, name),
             has_bar = $3,
-            is_configured = 1
+            is_configured = true
         WHERE id = $4
-      `, [producerId, eventName ? eventName.trim() : null, hasBar ? 1 : 0, eventId]);
+      `, [producerId, eventName ? eventName.trim() : null, Boolean(hasBar), eventId]);
 
       const updated = await tx.get(`
         SELECT e.*, p.name AS producer_name, p.contact_email AS producer_email
@@ -351,7 +351,7 @@ app.post('/api/events/:eventId/attendees', async (req, res) => {
       // 1. Guardar asistente
       await tx.run(`
         INSERT INTO attendees (id, event_id, tier_id, tier_name, full_name, rut, email, price_paid, qr_token, is_checked_in)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false)
       `, [attendeeId, eventId, tierId || null, tierName, fullName.trim(), rutLimpio, email.trim().toLowerCase(), finalPrice, signature]);
 
       // 2. Registrar automáticamente el INGRESO en finanzas
@@ -516,7 +516,7 @@ app.post('/api/events/:eventId/scan', scanLimiter, async (req, res) => {
     // 5. Marcar ingreso con timestamp
     const nowIso = new Date().toISOString();
     await db.run(
-      'UPDATE attendees SET is_checked_in = 1, checked_in_at = $1 WHERE id = $2',
+      'UPDATE attendees SET is_checked_in = true, checked_in_at = $1 WHERE id = $2',
       [nowIso, attendee.id]
     );
 
