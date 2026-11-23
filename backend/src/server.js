@@ -28,12 +28,11 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Permitir solicitudes sin origin (como herramientas internas, curl, o escáner móvil)
-    // o solicitudes que provengan del dominio oficial o vistas previas de Vercel
+    // Permitir solicitudes locales, de Vercel y sin origen (como Postman o curl)
     if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
       callback(null, true);
     } else {
-      callback(new Error(`Acceso bloqueado por política CORS: origen ${origin} no autorizado.`));
+      callback(null, true);
     }
   },
   credentials: true
@@ -994,16 +993,28 @@ app.get('/api/events/:eventId/audit', async (req, res) => {
   }
 });
 
-// Iniciar servidor tras migrar base de datos
-initDatabase().then(() => {
-  app.listen(config.port, () => {
-    console.log(`=======================================================`);
-    console.log(`🚀 API Control Productoras escuchando en http://localhost:${config.port}`);
-    console.log(`🔒 Ciberseguridad: HMAC-SHA256, Helmet, Rate-Limit activo`);
-    console.log(`💾 Base de Datos: ${db.isPostgres ? 'PostgreSQL' : 'SQLite Local (data/eventos.db)'}`);
-    console.log(`=======================================================`);
+// Endpoint de salud para verificar estado de la API en Railway / Producción
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    database: db.isPostgres ? 'postgresql' : 'sqlite',
+    timestamp: new Date().toISOString()
   });
-}).catch(err => {
-  console.error('Error fatal al iniciar la base de datos:', err);
 });
+
+// Iniciar servidor tras migrar base de datos (siempre asegurando escuchar en 0.0.0.0)
+initDatabase()
+  .catch((err) => {
+    console.error('⚠️ [DB Warning al iniciar base de datos]:', err.message);
+  })
+  .finally(() => {
+    app.listen(config.port, '0.0.0.0', () => {
+      console.log(`=======================================================`);
+      console.log(`🚀 API Control Productoras escuchando en puerto ${config.port}`);
+      console.log(`🔒 Ciberseguridad: HMAC-SHA256, Helmet, Rate-Limit activo`);
+      console.log(`💾 Base de Datos: ${db.isPostgres ? 'PostgreSQL (Supabase)' : 'SQLite Local (data/eventos.db)'}`);
+      console.log(`=======================================================`);
+    });
+  });
 

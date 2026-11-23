@@ -13,8 +13,11 @@ if (config.databaseUrl && config.databaseUrl.startsWith('postgres')) {
   isPostgres = true;
   pgPool = new pg.Pool({
     connectionString: config.databaseUrl,
+    ssl: {
+      rejectUnauthorized: false
+    }
   });
-  console.log('[DB] Conectado a PostgreSQL');
+  console.log('[DB] Conectado a PostgreSQL (Supabase SSL)');
 } else {
   if (!fs.existsSync(config.dataDir)) {
     fs.mkdirSync(config.dataDir, { recursive: true });

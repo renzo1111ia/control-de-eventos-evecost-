@@ -1,7 +1,41 @@
 ﻿import { db } from './db.js';
 
 export async function initDatabase() {
-  console.log('[DB] Inicializando esquema de base de datos...');
+  if (db.isPostgres) {
+    console.log('[DB] Conectado a PostgreSQL en la nube. Las tablas son administradas por Supabase.');
+    try {
+      const existingEvents = await db.query('SELECT id FROM events LIMIT 1');
+      if (existingEvents.length === 0) {
+        const defaultEventId = '11111111-1111-1111-1111-111111111111';
+        await db.run(
+          `INSERT INTO events (id, name, event_date, has_bar, is_configured)
+           VALUES ($1, $2, NOW() + INTERVAL '7 days', false, false)`,
+          [defaultEventId, 'Nuevo Evento de Productora']
+        );
+        await db.run(
+          `INSERT INTO ticket_tiers (id, event_id, name, price, capacity)
+           VALUES ($1, $2, 'Preventa General', 10000, 200)`,
+          [db.generateUUID(), defaultEventId]
+        );
+        await db.run(
+          `INSERT INTO ticket_tiers (id, event_id, name, price, capacity)
+           VALUES ($1, $2, 'Puerta General', 15000, 100)`,
+          [db.generateUUID(), defaultEventId]
+        );
+        await db.run(
+          `INSERT INTO ticket_tiers (id, event_id, name, price, capacity)
+           VALUES ($1, $2, 'VIP Exclusivo', 25000, 50)`,
+          [db.generateUUID(), defaultEventId]
+        );
+        console.log('[DB] Evento inicial creado en PostgreSQL.');
+      }
+    } catch (err) {
+      console.warn('[DB Warning al verificar eventos iniciales]:', err.message);
+    }
+    return;
+  }
+
+  console.log('[DB] Inicializando esquema SQLite local...');
 
   // Tabla 1: Productoras
   await db.run(`
