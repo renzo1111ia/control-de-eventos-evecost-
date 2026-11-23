@@ -1,35 +1,15 @@
 ﻿import { db } from './db.js';
 
 export async function initDatabase() {
-  try {
-    if (db.isPostgres) {
-      console.log('[DB] Conectado a PostgreSQL en la nube. Las tablas son administradas por Supabase.');
-      try {
-        const existingEvents = await db.query('SELECT id FROM events LIMIT 1');
-        if (existingEvents.length === 0) {
-          const defaultEventId = '11111111-1111-1111-1111-111111111111';
-          const futureDate = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
-          await db.run(
-            `INSERT INTO events (id, name, event_date, has_bar, is_configured)
-             VALUES ($1, $2, $3, false, false)`,
-            [defaultEventId, 'Nuevo Evento de Productora', futureDate]
-          );
-          await db.run(
-            `INSERT INTO ticket_tiers (id, event_id, name, price, capacity)
-             VALUES ($1, $2, 'Preventa General', 10000, 200),
-                    ($3, $2, 'Puerta General', 15000, 100),
-                    ($4, $2, 'VIP Exclusivo', 25000, 50)`,
-            [db.generateUUID(), defaultEventId, db.generateUUID(), db.generateUUID()]
-          );
-          console.log('[DB] Evento inicial creado en PostgreSQL.');
-        }
-      } catch (err) {
-        console.warn('[DB Warning al verificar eventos iniciales]:', err.message);
-      }
-      return;
-    }
+  // En producción con PostgreSQL (Supabase), las tablas ya fueron creadas con supabase_schema.sql
+  // No ejecutar DDL ni migraciones locales para garantizar 100% estabilidad y arranque inmediato.
+  if (db.isPostgres || process.env.NODE_ENV === 'production' || Boolean(process.env.DATABASE_URL)) {
+    console.log('✅ [DB] Modo PostgreSQL / Producción activo. Tablas administradas por Supabase.');
+    return;
+  }
 
-    console.log('[DB] Inicializando esquema SQLite local...');
+  console.log('[DB] Modo local activo. Inicializando esquema SQLite local...');
+  try {
 
   // Tabla 1: Productoras
   await db.run(`

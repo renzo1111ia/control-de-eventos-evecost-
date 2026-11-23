@@ -993,6 +993,16 @@ app.get('/api/events/:eventId/audit', async (req, res) => {
   }
 });
 
+// Ruta raíz informativa
+app.get('/', (req, res) => {
+  res.json({
+    name: 'EveCost API REST',
+    status: 'ONLINE',
+    health: '/api/health',
+    database: db.isPostgres ? 'PostgreSQL (Supabase)' : 'SQLite'
+  });
+});
+
 // Endpoint de salud para verificar estado de la API en Railway / Producción
 app.get('/api/health', (req, res) => {
   res.json({
