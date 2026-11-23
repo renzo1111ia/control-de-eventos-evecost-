@@ -11,7 +11,9 @@ export const config = {
   port: process.env.PORT || 4000,
   nodeEnv: process.env.NODE_ENV || 'development',
   databaseUrl: process.env.DATABASE_URL || '',
-  qrSecretKey: process.env.QR_SECRET_KEY || 'default_super_secret_key_change_me_in_production',
+  qrSecretKey: process.env.QR_SECRET_KEY || (process.env.NODE_ENV === 'production' 
+    ? (() => { console.warn('⚠️ [ALERTA DE SEGURIDAD] QR_SECRET_KEY no definida en producción. Define esta variable en Railway.'); return 'evecost_production_default_key_secure_2026'; })()
+    : 'default_super_secret_key_change_me_in_production'),
   supabaseUrl: process.env.SUPABASE_URL || 'https://tuhlujpblmlgcdghduwz.supabase.co',
   supabaseKey: process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_g5QDJrZV6hVxmDZX5dfYmQ_qKwqwhAP',
   smtp: {

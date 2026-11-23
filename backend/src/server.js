@@ -18,7 +18,26 @@ app.use(helmet({
   contentSecurityPolicy: false, // Permitir carga de recursos locales/estilos en desarrollo
   crossOriginEmbedderPolicy: false
 }));
-app.use(cors());
+// Orígenes permitidos para el consumo de la API (Producción y Desarrollo local)
+const allowedOrigins = [
+  'https://evecost.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:4173',
+  'http://localhost:3000'
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Permitir solicitudes sin origin (como herramientas internas, curl, o escáner móvil)
+    // o solicitudes que provengan del dominio oficial o vistas previas de Vercel
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(new Error(`Acceso bloqueado por política CORS: origen ${origin} no autorizado.`));
+    }
+  },
+  credentials: true
+}));
 app.use(express.json({ limit: '10mb' }));
 
 // Rate limiter general para proteger la API de ataques DoS
