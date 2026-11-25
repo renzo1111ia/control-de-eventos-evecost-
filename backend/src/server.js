@@ -71,6 +71,50 @@ async function registrarAuditoria(eventId, action, details, req) {
 }
 
 // ==========================================
+// 🔧 DIAGNÓSTICO SMTP (endpoint temporal)
+// ==========================================
+app.get('/api/test-smtp', async (req, res) => {
+  const { config } = await import('./config.js');
+  const nodemailer = (await import('nodemailer')).default;
+  const to = req.query.to || config.smtp.user;
+  const result = {
+    smtpHost: config.smtp.host,
+    smtpPort: config.smtp.port,
+    smtpUser: config.smtp.user ? config.smtp.user.substring(0, 4) + '***' : '(no configurado)',
+    smtpFrom: config.smtp.fromEmail,
+    configured: !!(config.smtp.user && config.smtp.pass && config.smtp.host !== 'smtp.ejemplo.cl'),
+    to,
+    sent: false,
+    error: null
+  };
+  if (!result.configured) {
+    return res.json({ ...result, error: 'SMTP no configurado en variables de entorno' });
+  }
+  try {
+    const transporter = nodemailer.createTransport({
+      host: config.smtp.host,
+      port: config.smtp.port,
+      secure: config.smtp.port === 465,
+      auth: { user: config.smtp.user, pass: config.smtp.pass },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 12000
+    });
+    await transporter.verify();
+    await transporter.sendMail({
+      from: `"EveCost Test" <${config.smtp.fromEmail}>`,
+      to,
+      subject: 'EveCost - Test SMTP OK',
+      text: 'Si recibes este correo, el SMTP está configurado correctamente.'
+    });
+    result.sent = true;
+  } catch (err) {
+    result.error = err.message;
+  }
+  res.json(result);
+});
+
+// ==========================================
 // 📌 RUTAS: GESTIÓN DE EVENTOS Y PRODUCTORAS
 // ==========================================
 
