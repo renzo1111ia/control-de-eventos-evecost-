@@ -11,6 +11,7 @@ import {
   Tag,
   CreditCard
 } from 'lucide-react';
+import { API_URL } from '../utils/api.js';
 
 export default function FinanceModule({ eventId, financeData, onRefresh }) {
   const [showModal, setShowModal] = useState(false);

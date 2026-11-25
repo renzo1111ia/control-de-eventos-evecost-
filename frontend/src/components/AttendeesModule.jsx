@@ -16,6 +16,7 @@ import {
   Plus
 } from 'lucide-react';
 import { validarRUT, formatearRUT } from '../utils/rut.js';
+import { API_URL } from '../utils/api.js';
 
 export default function AttendeesModule({ eventId, attendees = [], tiers = [], onRefresh }) {
   const [searchTerm, setSearchTerm] = useState('');

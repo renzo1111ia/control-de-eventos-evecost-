@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { ShieldCheck, AlertTriangle, Clock, RefreshCw, Key, Database } from 'lucide-react';
+import { API_URL } from '../utils/api.js';
 
 export default function AuditModule({ eventId }) {
   const [logs, setLogs] = useState([]);

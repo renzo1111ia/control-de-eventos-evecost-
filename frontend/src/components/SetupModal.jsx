@@ -1,5 +1,6 @@
 ﻿import React, { useState } from 'react';
 import { Wine, Building2, Mail, Calendar, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { API_URL } from '../utils/api.js';
 
 export default function SetupModal({ eventId, onComplete, defaultEventName = '' }) {
   const [producerName, setProducerName] = useState('');

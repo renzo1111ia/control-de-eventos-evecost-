@@ -21,6 +21,7 @@ import {
   ArrowLeftRight,
   UserPlus
 } from 'lucide-react';
+import { API_URL } from '../utils/api.js';
 
 // --- Badges de Rol de Cortesía ---
 const RoleBadge = ({ role }) => {

@@ -12,6 +12,7 @@ import {
   ArrowRight 
 } from 'lucide-react';
 import { sounds } from '../utils/audio.js';
+import { API_URL } from '../utils/api.js';
 
 export default function ScannerModule({ eventId, onScanSuccess }) {
   const [scanResult, setScanResult] = useState(null);
