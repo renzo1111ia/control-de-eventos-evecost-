@@ -372,12 +372,13 @@ app.post('/api/events/:eventId/attendees', async (req, res) => {
       };
     });
 
-    // 3. Generar QR y enviar correo con el nombre de la productora
+    // 3. Generar QR en memoria de forma síncrona (rápido)
+    // El correo se envía en background para no bloquear la respuesta al cliente
     const ticketDelivery = await emitirYEnviarTicket({
       attendee: result,
       event: { id: eventId, name: event.name },
       producer: { name: event.producer_name || 'Productora', contact_email: event.producer_email }
-    });
+    }, { asyncEmail: true });
 
     await registrarAuditoria(eventId, 'ISSUE_TICKET', { attendeeId, rut: rutLimpio, pricePaid: finalPrice }, req);
 

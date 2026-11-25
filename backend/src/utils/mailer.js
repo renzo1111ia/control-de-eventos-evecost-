@@ -16,7 +16,7 @@ function escapeHtml(str) {
 /**
  * Genera el payload del QR y envía el correo al asistente.
  */
-export async function emitirYEnviarTicket({ attendee, event, producer }) {
+export async function emitirYEnviarTicket({ attendee, event, producer }, { asyncEmail = false } = {}) {
   const signature = generarFirmaQR(event.id, attendee.id, attendee.rut);
 
   const qrPayload = JSON.stringify({
@@ -100,39 +100,52 @@ export async function emitirYEnviarTicket({ attendee, event, producer }) {
   let emailSent = false;
   let emailPreviewUrl = null;
 
-  // Intentar enviar si SMTP está configurado
-  if (config.smtp.user && config.smtp.pass && config.smtp.host !== 'smtp.ejemplo.cl') {
-    try {
-      const transporter = nodemailer.createTransport({
-        host: config.smtp.host,
-        port: config.smtp.port,
-        secure: config.smtp.port === 465,
-        auth: {
-          user: config.smtp.user,
-          pass: config.smtp.pass
-        }
-      });
+  // Función de envío SMTP
+  const sendEmail = async () => {
+    if (config.smtp.user && config.smtp.pass && config.smtp.host !== 'smtp.ejemplo.cl') {
+      try {
+        const transporter = nodemailer.createTransport({
+          host: config.smtp.host,
+          port: config.smtp.port,
+          secure: config.smtp.port === 465,
+          auth: {
+            user: config.smtp.user,
+            pass: config.smtp.pass
+          },
+          connectionTimeout: 8000,
+          greetingTimeout: 8000,
+          socketTimeout: 10000
+        });
 
-      await transporter.sendMail({
-        from: `"${producer.name}" <${config.smtp.fromEmail}>`,
-        replyTo: producer.contact_email || config.smtp.fromEmail,
-        to: attendee.email,
-        subject: `Tu Entrada QR - ${event.name} (${producer.name})`,
-        html: emailHtml,
-        attachments: [
-          {
-            filename: 'ticket-qr.png',
-            path: qrDataUrl,
-            cid: 'ticketqr'
-          }
-        ]
-      });
-      emailSent = true;
-    } catch (err) {
-      console.warn(`[SMTP Warning] No se pudo conectar a SMTP: ${err.message}. El QR fue generado exitosamente.`);
+        await transporter.sendMail({
+          from: `"${producer.name}" <${config.smtp.fromEmail}>`,
+          replyTo: producer.contact_email || config.smtp.fromEmail,
+          to: attendee.email,
+          subject: `Tu Entrada QR - ${event.name} (${producer.name})`,
+          html: emailHtml,
+          attachments: [
+            {
+              filename: 'ticket-qr.png',
+              path: qrDataUrl,
+              cid: 'ticketqr'
+            }
+          ]
+        });
+        emailSent = true;
+      } catch (err) {
+        console.warn(`[SMTP Warning] No se pudo enviar correo: ${err.message}`);
+      }
+    } else {
+      console.log(`[Modo Desarrollo] SMTP no configurado. QR generado en memoria para ${attendee.email}`);
     }
+  };
+
+  if (asyncEmail) {
+    // Enviar correo en background (sin bloquear la respuesta HTTP)
+    sendEmail().catch(err => console.warn('[SMTP Background]', err.message));
+    emailSent = null; // null = pendiente de envío
   } else {
-    console.log(`[Modo Desarrollo] SMTP no configurado. QR generado en memoria para ${attendee.email}`);
+    await sendEmail();
   }
 
   return {
