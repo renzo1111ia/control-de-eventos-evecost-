@@ -11,7 +11,7 @@ import { API_URL } from './utils/api.js';
 
 export default function App() {
   const [events, setEvents] = useState([]);
-  const [currentEventId, setCurrentEventId] = useState('11111111-1111-1111-1111-111111111111');
+  const [currentEventId, setCurrentEventId] = useState(null);
   const [eventData, setEventData] = useState(null);
   const [activeTab, setActiveTab] = useState('finances');
   const [showEventSelector, setShowEventSelector] = useState(false);
@@ -28,8 +28,8 @@ export default function App() {
       const res = await fetch(`${API_URL}/api/events`);
       const data = await res.json();
       setEvents(data);
-      if (data.length > 0 && !currentEventId) {
-        setCurrentEventId(data[0].id);
+      if (data.length > 0) {
+        setCurrentEventId(prev => prev ?? data[0].id);
       }
     } catch (err) {
       console.error('Error al cargar eventos:', err);
