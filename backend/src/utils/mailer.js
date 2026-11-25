@@ -79,7 +79,7 @@ export async function emitirYEnviarTicket({ attendee, event, producer }, { async
         </div>
 
         <div style="background: #ffffff; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 20px;">
-          <img src="cid:ticketqr" alt="Código QR de Acceso" style="width: 240px; height: 240px; display: block; margin: 0 auto;" />
+          <img src="cid:ticket-qr.png" alt="Código QR de Acceso" style="width: 240px; height: 240px; display: block; margin: 0 auto;" />
           <p style="color: #6b7280; font-size: 11px; margin: 8px 0 0 0; font-family: monospace;">Firma digital: ${signature.slice(0, 16)}...</p>
         </div>
 
@@ -166,7 +166,7 @@ export async function emitirYEnviarTicket({ attendee, event, producer }, { async
           to: attendee.email,
           subject: `Tu Entrada QR - ${event.name} (${producer.name})`,
           html: emailHtml,
-          attachments: [{ filename: 'ticket-qr.png', path: qrDataUrl, cid: 'ticketqr' }]
+          attachments: [{ filename: 'ticket-qr.png', path: qrDataUrl, cid: 'ticket-qr.png' }]
         });
         emailSent = true;
       } catch (err) {
