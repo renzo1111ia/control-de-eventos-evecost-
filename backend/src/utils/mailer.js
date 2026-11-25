@@ -1,4 +1,3 @@
-import nodemailer from 'nodemailer';
 import QRCode from 'qrcode';
 import { config } from '../config.js';
 import { generarFirmaQR } from './crypto.js';
@@ -100,43 +99,82 @@ export async function emitirYEnviarTicket({ attendee, event, producer }, { async
   let emailSent = false;
   let emailPreviewUrl = null;
 
-  // Función de envío SMTP
+  // Función de envío por API Brevo (HTTPS) — funciona en Railway sin restricciones de puertos SMTP
   const sendEmail = async () => {
-    if (config.smtp.user && config.smtp.pass && config.smtp.host !== 'smtp.ejemplo.cl') {
+    const brevoKey = process.env.BREVO_API_KEY;
+
+    if (brevoKey) {
+      // --- Vía Brevo API (producción en Railway) ---
       try {
+        // El QR va como adjunto en base64 (quitamos el prefijo data:image/png;base64,)
+        const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
+
+        const payload = {
+          sender: {
+            name: producer.name || 'EveCost',
+            email: config.smtp.fromEmail || config.smtp.user || 'psicosisproduccionesiqq@gmail.com'
+          },
+          to: [{ email: attendee.email, name: attendee.full_name }],
+          replyTo: { email: producer.contact_email || config.smtp.fromEmail },
+          subject: `Tu Entrada QR - ${event.name} (${producer.name})`,
+          htmlContent: emailHtml,
+          attachment: [
+            {
+              name: 'ticket-qr.png',
+              content: qrBase64
+            }
+          ]
+        };
+
+        const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'api-key': brevoKey,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!resp.ok) {
+          const errBody = await resp.text();
+          throw new Error(`Brevo API ${resp.status}: ${errBody}`);
+        }
+
+        emailSent = true;
+        console.log(`[Brevo] Correo enviado a ${attendee.email}`);
+      } catch (err) {
+        console.warn(`[Brevo Warning] No se pudo enviar correo: ${err.message}`);
+      }
+
+    } else if (config.smtp.user && config.smtp.pass) {
+      // --- Fallback SMTP (desarrollo local) ---
+      try {
+        const nodemailer = (await import('nodemailer')).default;
         const transporter = nodemailer.createTransport({
           host: config.smtp.host,
           port: config.smtp.port,
           secure: config.smtp.port === 465,
-          auth: {
-            user: config.smtp.user,
-            pass: config.smtp.pass
-          },
+          auth: { user: config.smtp.user, pass: config.smtp.pass },
           connectionTimeout: 8000,
           greetingTimeout: 8000,
           socketTimeout: 10000
         });
-
         await transporter.sendMail({
           from: `"${producer.name}" <${config.smtp.fromEmail}>`,
           replyTo: producer.contact_email || config.smtp.fromEmail,
           to: attendee.email,
           subject: `Tu Entrada QR - ${event.name} (${producer.name})`,
           html: emailHtml,
-          attachments: [
-            {
-              filename: 'ticket-qr.png',
-              path: qrDataUrl,
-              cid: 'ticketqr'
-            }
-          ]
+          attachments: [{ filename: 'ticket-qr.png', path: qrDataUrl, cid: 'ticketqr' }]
         });
         emailSent = true;
       } catch (err) {
         console.warn(`[SMTP Warning] No se pudo enviar correo: ${err.message}`);
       }
+
     } else {
-      console.log(`[Modo Desarrollo] SMTP no configurado. QR generado en memoria para ${attendee.email}`);
+      console.log(`[Modo Desarrollo] Sin credenciales de email. QR generado en memoria para ${attendee.email}`);
     }
   };
 

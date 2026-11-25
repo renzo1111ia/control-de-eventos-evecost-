@@ -75,43 +75,68 @@ async function registrarAuditoria(eventId, action, details, req) {
 }
 
 // ==========================================
-// 🔧 DIAGNÓSTICO SMTP (endpoint temporal)
+// 🔧 DIAGNÓSTICO EMAIL (endpoint temporal)
 // ==========================================
 app.get('/api/test-smtp', async (req, res) => {
   const { config } = await import('./config.js');
-  const nodemailer = (await import('nodemailer')).default;
-  const to = req.query.to || config.smtp.user;
+  const to = req.query.to || config.smtp.user || 'test@example.com';
+  const brevoKey = process.env.BREVO_API_KEY;
+
   const result = {
+    mode: brevoKey ? 'brevo-api' : 'smtp',
     smtpHost: config.smtp.host,
     smtpPort: config.smtp.port,
     smtpUser: config.smtp.user ? config.smtp.user.substring(0, 4) + '***' : '(no configurado)',
     smtpFrom: config.smtp.fromEmail,
-    configured: !!(config.smtp.user && config.smtp.pass && config.smtp.host !== 'smtp.ejemplo.cl'),
+    brevoConfigured: !!brevoKey,
     to,
     sent: false,
     error: null
   };
-  if (!result.configured) {
-    return res.json({ ...result, error: 'SMTP no configurado en variables de entorno' });
-  }
+
   try {
-    const transporter = nodemailer.createTransport({
-      host: config.smtp.host,
-      port: config.smtp.port,
-      secure: config.smtp.port === 465,
-      auth: { user: config.smtp.user, pass: config.smtp.pass },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 12000
-    });
-    await transporter.verify();
-    await transporter.sendMail({
-      from: `"EveCost Test" <${config.smtp.fromEmail}>`,
-      to,
-      subject: 'EveCost - Test SMTP OK',
-      text: 'Si recibes este correo, el SMTP está configurado correctamente.'
-    });
-    result.sent = true;
+    if (brevoKey) {
+      // Test vía Brevo API
+      const payload = {
+        sender: { name: 'EveCost Test', email: config.smtp.fromEmail || 'psicosisproduccionesiqq@gmail.com' },
+        to: [{ email: to }],
+        subject: 'EveCost - Test Email OK (Brevo)',
+        htmlContent: '<p>Si recibes este correo, el envío de emails está configurado correctamente con <b>Brevo API</b>. ✅</p>'
+      };
+      const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'api-key': brevoKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!resp.ok) {
+        const errBody = await resp.text();
+        throw new Error(`Brevo API ${resp.status}: ${errBody}`);
+      }
+      result.sent = true;
+    } else {
+      // Test vía SMTP
+      const nodemailer = (await import('nodemailer')).default;
+      if (!config.smtp.user || !config.smtp.pass) {
+        return res.json({ ...result, error: 'Sin credenciales configuradas (BREVO_API_KEY o SMTP_USER/PASS)' });
+      }
+      const transporter = nodemailer.createTransport({
+        host: config.smtp.host,
+        port: config.smtp.port,
+        secure: config.smtp.port === 465,
+        auth: { user: config.smtp.user, pass: config.smtp.pass },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 12000
+      });
+      await transporter.verify();
+      await transporter.sendMail({
+        from: `"EveCost Test" <${config.smtp.fromEmail}>`,
+        to,
+        subject: 'EveCost - Test SMTP OK',
+        text: 'Si recibes este correo, el SMTP está configurado correctamente.'
+      });
+      result.sent = true;
+    }
   } catch (err) {
     result.error = err.message;
   }
