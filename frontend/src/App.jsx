@@ -2,6 +2,7 @@
 import Navbar from './components/Navbar.jsx';
 import SetupModal from './components/SetupModal.jsx';
 import EventSelectorModal from './components/EventSelectorModal.jsx';
+import ProducerSettingsModal from './components/ProducerSettingsModal.jsx';
 import FinanceModule from './components/FinanceModule.jsx';
 import AttendeesModule from './components/AttendeesModule.jsx';
 import BarStockModule from './components/BarStockModule.jsx';
@@ -15,6 +16,7 @@ export default function App() {
   const [eventData, setEventData] = useState(null);
   const [activeTab, setActiveTab] = useState('finances');
   const [showEventSelector, setShowEventSelector] = useState(false);
+  const [showProducerSettings, setShowProducerSettings] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Datos específicos de módulos
@@ -179,12 +181,26 @@ export default function App() {
         />
       )}
 
+      {/* Modal de Ajustes de Productora y Logo */}
+      {showProducerSettings && currentEventId && (
+        <ProducerSettingsModal
+          eventId={currentEventId}
+          eventData={eventData}
+          onClose={() => setShowProducerSettings(false)}
+          onUpdated={(updated) => {
+            setEventData(updated);
+            fetchEvents();
+          }}
+        />
+      )}
+
       {/* Navbar Superior */}
       <Navbar
         eventData={eventData}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenEventSelector={() => setShowEventSelector(true)}
+        onOpenProducerSettings={() => setShowProducerSettings(true)}
       />
 
       {/* Contenido Principal según Pestaña Activa */}

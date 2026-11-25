@@ -301,12 +301,13 @@ app.delete('/api/events/:eventId/tiers/:tierId', async (req, res) => {
   }
 });
 
-// 4. CONFIGURACIÓN ÚNICA DEL POPUP (Productora + Switch de Barra)
+// 4. CONFIGURACIÓN ÚNICA DEL POPUP (Productora + Switch de Barra + Logo)
 // Se ejecuta una sola vez al entrar por primera vez a un evento nuevo
 app.post('/api/events/:eventId/setup', async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { producerName, producerEmail, eventName, hasBar } = req.body;
+    const { producerName, producerEmail, producerLogo, logoUrl, eventName, hasBar } = req.body;
+    const finalLogo = producerLogo || logoUrl || null;
 
     if (!producerName || !producerEmail) {
       return res.status(400).json({ error: 'El nombre y correo de la productora son obligatorios.' });
@@ -322,12 +323,15 @@ app.post('/api/events/:eventId/setup', async (req, res) => {
 
       if (producer) {
         producerId = producer.id;
-        await tx.run('UPDATE producers SET contact_email = $1 WHERE id = $2', [producerEmail.trim(), producerId]);
+        await tx.run(
+          'UPDATE producers SET contact_email = $1, logo_url = COALESCE($2, logo_url) WHERE id = $3',
+          [producerEmail.trim(), finalLogo, producerId]
+        );
       } else {
         producerId = db.generateUUID();
         await tx.run(
-          'INSERT INTO producers (id, name, contact_email) VALUES ($1, $2, $3)',
-          [producerId, producerName.trim(), producerEmail.trim()]
+          'INSERT INTO producers (id, name, contact_email, logo_url) VALUES ($1, $2, $3, $4)',
+          [producerId, producerName.trim(), producerEmail.trim(), finalLogo]
         );
       }
 
@@ -342,7 +346,7 @@ app.post('/api/events/:eventId/setup', async (req, res) => {
       `, [producerId, eventName ? eventName.trim() : null, Boolean(hasBar), eventId]);
 
       const updated = await tx.get(`
-        SELECT e.*, p.name AS producer_name, p.contact_email AS producer_email
+        SELECT e.*, p.name AS producer_name, p.contact_email AS producer_email, p.logo_url AS producer_logo
         FROM events e
         JOIN producers p ON e.producer_id = p.id
         WHERE e.id = $1
@@ -351,9 +355,62 @@ app.post('/api/events/:eventId/setup', async (req, res) => {
       return updated;
     });
 
-    await registrarAuditoria(eventId, 'SETUP_EVENT', { producerName, hasBar: Boolean(hasBar) }, req);
+    await registrarAuditoria(eventId, 'SETUP_EVENT', { producerName, hasBar: Boolean(hasBar), hasLogo: Boolean(finalLogo) }, req);
 
     res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4b. Actualizar datos y logo de la productora en cualquier momento
+app.put('/api/events/:eventId/producer', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { producerName, producerEmail, producerLogo, logoUrl } = req.body;
+    const finalLogo = producerLogo !== undefined ? producerLogo : (logoUrl !== undefined ? logoUrl : null);
+
+    const event = await db.get('SELECT * FROM events WHERE id = $1', [eventId]);
+    if (!event) {
+      return res.status(404).json({ error: 'Evento no encontrado' });
+    }
+
+    let producerId = event.producer_id;
+    if (!producerId) {
+      producerId = db.generateUUID();
+      await db.run(
+        'INSERT INTO producers (id, name, contact_email, logo_url) VALUES ($1, $2, $3, $4)',
+        [producerId, producerName?.trim() || 'Productora', producerEmail?.trim() || '', finalLogo]
+      );
+      await db.run('UPDATE events SET producer_id = $1 WHERE id = $2', [producerId, eventId]);
+    } else {
+      await db.run(`
+        UPDATE producers
+        SET name = COALESCE($1, name),
+            contact_email = COALESCE($2, contact_email),
+            logo_url = $3
+        WHERE id = $4
+      `, [
+        producerName ? producerName.trim() : null,
+        producerEmail ? producerEmail.trim() : null,
+        finalLogo,
+        producerId
+      ]);
+    }
+
+    const updated = await db.get(`
+      SELECT e.*, p.name AS producer_name, p.contact_email AS producer_email, p.logo_url AS producer_logo
+      FROM events e
+      LEFT JOIN producers p ON e.producer_id = p.id
+      WHERE e.id = $1
+    `, [eventId]);
+
+    await registrarAuditoria(eventId, 'UPDATE_PRODUCER_PROFILE', {
+      producerName: updated.producer_name,
+      hasLogo: Boolean(updated.producer_logo)
+    }, req);
+
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -396,7 +453,7 @@ app.post('/api/events/:eventId/attendees', async (req, res) => {
 
     // Obtener datos del evento y su productora
     const event = await db.get(`
-      SELECT e.*, p.name AS producer_name, p.contact_email AS producer_email
+      SELECT e.*, p.name AS producer_name, p.contact_email AS producer_email, p.logo_url AS producer_logo
       FROM events e
       LEFT JOIN producers p ON e.producer_id = p.id
       WHERE e.id = $1
@@ -450,7 +507,11 @@ app.post('/api/events/:eventId/attendees', async (req, res) => {
     const ticketDelivery = await emitirYEnviarTicket({
       attendee: result,
       event: { id: eventId, name: event.name },
-      producer: { name: event.producer_name || 'Productora', contact_email: event.producer_email }
+      producer: { 
+        name: event.producer_name || 'Productora', 
+        contact_email: event.producer_email,
+        logo_url: event.producer_logo 
+      }
     }, { asyncEmail: true });
 
     await registrarAuditoria(eventId, 'ISSUE_TICKET', { attendeeId, rut: rutLimpio, pricePaid: finalPrice }, req);

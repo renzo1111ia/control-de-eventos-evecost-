@@ -460,56 +460,88 @@ export default function AttendeesModule({ eventId, attendees = [], tiers = [], o
         </div>
       )}
 
-      {/* Modal Popup de Ticket Emitido con QR */}
+      {/* Modal Popup de Ticket Emitido con QR - Diseño Ticket VIP */}
       {showTicketModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl max-w-sm w-full p-6 shadow-2xl text-white text-center relative">
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl text-white text-center relative overflow-hidden">
+            
             <button
               onClick={() => setShowTicketModal(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition"
+              title="Cerrar"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full">
-              ¡Entrada Emitida con Éxito!
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full inline-block">
+              ✓ Entrada Emitida con Éxito
             </span>
 
-            <h3 className="text-xl font-black mt-2 text-white">
+            <h3 className="text-xl font-black mt-3 text-white tracking-tight">
               {showTicketModal.attendee.full_name}
             </h3>
-            <p className="text-emerald-400 font-mono font-bold text-sm">
-              RUT: {showTicketModal.attendee.rut}
-            </p>
+            
+            <div className="inline-flex items-center gap-1.5 mt-1 bg-slate-950/80 px-3 py-1 rounded-lg border border-slate-800">
+              <span className="text-[11px] text-slate-400 uppercase font-semibold">RUT:</span>
+              <span className="text-emerald-400 font-mono font-black text-sm">
+                {showTicketModal.attendee.rut}
+              </span>
+            </div>
 
-            <div className="bg-white p-4 rounded-xl my-4 inline-block shadow-lg">
+            {/* Tarjeta del Código QR */}
+            <div className="bg-white p-4 rounded-2xl my-4 inline-block shadow-xl border border-slate-200">
               <img
                 src={showTicketModal.qrDataUrl}
                 alt="Código QR"
-                className="w-48 h-48 mx-auto"
+                className="w-48 h-48 mx-auto block"
               />
+              <div className="text-[10px] font-mono text-slate-500 mt-2 tracking-wider">
+                ID: {showTicketModal.attendee.id.substring(0, 8).toUpperCase()} • CÓDIGO ACTIVO
+              </div>
             </div>
 
-            <div className="text-xs text-slate-400 space-y-1">
-              <div>Tipo: <strong className="text-white">{showTicketModal.attendee.tier_name}</strong></div>
-              <div>Correo: <strong className="text-white">{showTicketModal.attendee.email}</strong></div>
-              {showTicketModal.emailSent ? (
-                <div className="text-emerald-400 text-[11px] pt-1">
-                  ✓ Correo enviado con el remitente de la productora
-                </div>
-              ) : (
-                <div className="text-amber-400 text-[11px] pt-1">
-                  ℹ️ QR generado localmente listo para escanear
-                </div>
-              )}
+            <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-3 text-xs text-slate-400 space-y-1.5 text-left mb-4">
+              <div className="flex justify-between items-center">
+                <span>Sector / Tipo:</span>
+                <strong className="text-white font-bold">{showTicketModal.attendee.tier_name}</strong>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Correo destinatario:</span>
+                <strong className="text-white font-medium truncate max-w-[180px]">{showTicketModal.attendee.email}</strong>
+              </div>
+              
+              <div className="pt-2 border-t border-slate-800/80">
+                {showTicketModal.emailSent ? (
+                  <div className="text-emerald-400 text-[11px] font-semibold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Correo con QR enviado al destinatario</span>
+                  </div>
+                ) : (
+                  <div className="text-emerald-400/90 text-[11px] font-medium flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Entrada acreditada en el sistema</span>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <button
-              onClick={() => setShowTicketModal(null)}
-              className="w-full mt-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition"
-            >
-              Listo / Cerrar
-            </button>
+            <div className="flex items-center gap-2">
+              <a
+                href={showTicketModal.qrDataUrl}
+                download={`ticket-${showTicketModal.attendee.rut}.png`}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Descargar QR</span>
+              </a>
+
+              <button
+                onClick={() => setShowTicketModal(null)}
+                className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition shadow-lg shadow-emerald-500/20"
+              >
+                Listo / Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
