@@ -18,7 +18,7 @@ export const config = {
   supabaseKey: process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_g5QDJrZV6hVxmDZX5dfYmQ_qKwqwhAP',
   smtp: {
     host: process.env.SMTP_HOST || 'localhost',
-    port: Number(process.env.SMTP_PORT) || 587,
+    port: Number(process.env.SMTP_PORT) || 465,
     user: process.env.SMTP_USER || '',
     pass: process.env.SMTP_PASS || '',
     fromEmail: process.env.SMTP_FROM_EMAIL || 'tickets@productora.cl',
