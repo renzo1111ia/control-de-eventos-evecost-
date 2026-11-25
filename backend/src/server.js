@@ -11,6 +11,10 @@ import { emitirYEnviarTicket } from './utils/mailer.js';
 
 const app = express();
 
+// Railway (y cualquier proxy inverso en producción) añade el header X-Forwarded-For.
+// Sin esto, express-rate-limit lanza ERR_ERL_UNEXPECTED_X_FORWARDED_FOR y bloquea todo.
+app.set('trust proxy', 1);
+
 // ==========================================
 // 🛡️ CAPA DE CIBERSEGURIDAD Y MIDDLEWARES
 // ==========================================
